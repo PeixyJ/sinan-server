@@ -31,6 +31,10 @@ sinan:
     icon-path: ${UPLOAD_ICON_PATH:icons}
     # 访问URL前缀
     url-prefix: ${UPLOAD_URL_PREFIX:/api/bookmark}
+favicon:
+  cache:
+    # favicon缓存目录
+    dir: ${FAVICON_CACHE_DIR:upload/icons}
 passkey:
   id: ${PASSKEY_ID:https://sinan.host}
   name: ${PASSKEY_NAME:sinan}

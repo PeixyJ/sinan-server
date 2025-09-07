@@ -3,6 +3,11 @@ package pres.peixinyi.sinan.model.sinan.controller;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import pres.peixinyi.sinan.common.Result;
@@ -18,8 +23,12 @@ import pres.peixinyi.sinan.model.sinan.service.SnBookmarkService;
 import pres.peixinyi.sinan.model.sinan.service.SnSpaceService;
 import pres.peixinyi.sinan.model.sinan.service.SnTagService;
 import pres.peixinyi.sinan.model.rbac.service.SnUserKeyService;
+import pres.peixinyi.sinan.model.favicon.service.FaviconService;
 import pres.peixinyi.sinan.utils.PinyinUtils;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +60,9 @@ public class ApiController {
 
     @Resource
     private SnBookmarkAssTagService bookmarkAssTagService;
+
+    @Resource
+    private FaviconService faviconService;
 
     /**
      * 验证访问密钥并获取用户ID
@@ -444,6 +456,92 @@ public class ApiController {
                 .toList();
 
         return Result.success(bookmarkResponses);
+    }
+
+    /**
+     * 根据域名获取favicon图标
+     *
+     * @param accessKey 访问密钥
+     * @param domain    域名，如 vitepress.dev
+     * @param sz        图标尺寸，可选参数，默认返回最优尺寸
+     * @return favicon图片文件
+     */
+    @GetMapping("/favicon/icon")
+    public ResponseEntity<org.springframework.core.io.Resource> getFaviconByDomain(
+            @RequestHeader("X-Access-Key") String accessKey,
+            @RequestParam("domain") String domain,
+            @RequestParam(value = "sz", required = false) Integer sz) {
+
+        // 验证访问密钥
+        String userId = authenticateUser(accessKey);
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        try {
+            // 检查域名是否被标记为失败
+            if (faviconService.isDomainMarkedAsFailed(domain)) {
+                return ResponseEntity.notFound().build();
+            }
+
+            String cachedFilePath = faviconService.getFaviconByDomainAndSize(domain, sz);
+            if (cachedFilePath != null) {
+                // 直接返回缓存的文件
+                Path filePath = Paths.get(cachedFilePath);
+                File file = filePath.toFile();
+
+                if (file.exists() && file.isFile()) {
+                    org.springframework.core.io.Resource resource = new FileSystemResource(file);
+
+                    // 根据文件扩展名确定Content-Type
+                    String fileName = file.getName();
+                    String contentType = determineContentType(fileName);
+
+                    // 设置缓存头
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(MediaType.parseMediaType(contentType));
+                    headers.setCacheControl("public, max-age=2592000"); // 缓存1个月（30天 * 24小时 * 60分钟 * 60秒）
+
+                    return ResponseEntity.ok()
+                            .headers(headers)
+                            .body(resource);
+                }
+            }
+
+            return ResponseEntity.notFound().build();
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * 根据文件扩展名确定Content-Type
+     *
+     * @param filename 文件名
+     * @return MIME类型字符串
+     */
+    private String determineContentType(String filename) {
+        if (filename == null) {
+            return "image/png";
+        }
+
+        String lowerFilename = filename.toLowerCase();
+        if (lowerFilename.endsWith(".png")) {
+            return "image/png";
+        } else if (lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".jpeg")) {
+            return "image/jpeg";
+        } else if (lowerFilename.endsWith(".gif")) {
+            return "image/gif";
+        } else if (lowerFilename.endsWith(".svg")) {
+            return "image/svg+xml";
+        } else if (lowerFilename.endsWith(".ico")) {
+            return "image/x-icon";
+        } else if (lowerFilename.endsWith(".webp")) {
+            return "image/webp";
+        }
+
+        return "image/png";
     }
 
 }
