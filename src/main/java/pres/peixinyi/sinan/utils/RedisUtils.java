@@ -47,6 +47,27 @@ public class RedisUtils {
     }
 
     /**
+     * 根据pattern删除key
+     *
+     * @param pattern
+     */
+    public void delByPattern(String pattern) {
+        Set<String> keys = redisTemplate.keys(pattern);
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
+    }
+
+    /**
+     * 删除单个key
+     *
+     * @param key
+     */
+    public void del(String key) {
+        redisTemplate.delete(key);
+    }
+
+    /**
      * 序列化key
      *
      * @param key
@@ -191,6 +212,17 @@ public class RedisUtils {
      */
     public void set(String key, String value) {
         redisTemplate.opsForValue().set(key, value);
+    }
+
+    /**
+     * 设置指定 key 的值并设置过期时间
+     *
+     * @param key
+     * @param value
+     * @param expire
+     */
+    public void set(String key, String value, long expire) {
+        redisTemplate.opsForValue().set(key, value, expire, TimeUnit.SECONDS);
     }
 
     /**
